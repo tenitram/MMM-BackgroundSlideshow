@@ -1,6 +1,6 @@
 # Module: Background Slideshow
 
-Show a slideshow of images in the background. Great for a photo frame from instead of a mirror.
+Show a slideshow of images in the background. Great for a photo frame from instead of a mirror. tenitram's extension: allows setting up galleries and switch between them by two new events: BACKGROUNDSLIDESHOW_NEXT_GALLERY and BACKGROUNDSLIDESHOW_PREV_GALLERY. First version - subfolders (recursion) does not work. BACKGROUNDSLIDESHOW_URL and BACKGROUNDSLIDESHOW_URLS does not work.
 
 The `MMM-BackgroundSlideshow` module is designed to display images fullscreen, one at a time on a fixed interval, from one or many directories. These images can be shown in order or at random, one directory at a time or all at time. The images can transition from one to the other and be shown with no edge (cover) or the enter image(contain).
 
@@ -45,7 +45,7 @@ modules: [
     module: 'MMM-BackgroundSlideshow',
     position: 'fullscreen_below',
     config: {
-      imagePaths: ['modules/MMM-BackgroundSlideshow/exampleImages/'],
+      galleries: [{'name': 'Gallery name', 'path': 'modules/MMM-BackgroundSlideshow/exampleImages'],
       transitionImages: true,
       randomizeImageOrder: true
     }
@@ -90,6 +90,16 @@ The following notifications can be used:
 		<tr>
 			<td><code>BACKGROUNDSLIDESHOW_PREVIOUS</code></td>
 			<td>Change to the previous image, restart the timer for image changes only if already running<br>
+			</td>
+		</tr>
+		<tr>
+			<td><code>BACKGROUNDSLIDESHOW_NEXT_GALLERY</code></td>
+			<td>Change to the next gallery, restart the timer for image changes only if already running<br>
+			</td>
+		</tr>
+		<tr>
+			<td><code>BACKGROUNDSLIDESHOW_PREVIOUS_GALLERY</code></td>
+			<td>Change to the previous gallery, restart the timer for image changes only if already running<br>
 			</td>
 		</tr>
 		<tr>

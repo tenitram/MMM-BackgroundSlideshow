@@ -30,9 +30,10 @@ module.exports = NodeHelper.create({
     this.excludePaths = new Set();
     this.validImageFileExtensions = new Set();
     this.expressInstance = this.expressApp;
-    this.imageList = [];
+    this.galleryList = [];
     this.index = 0;
     this.config;
+    this.currentGallery = 0;
   },
 
   // shuffles an array at random and returns it
@@ -108,24 +109,27 @@ module.exports = NodeHelper.create({
   // gathers the image list
   gatherImageList: function (config, sendNotification) {
     // create an empty main image list
-    this.imageList = [];
-    for (let i = 0; i < config.imagePaths.length; i++) {
-      this.getFiles(config.imagePaths[i], this.imageList, config);
+    this.galleryList = [];
+    for (let i = 0; i < config.galleries.length; i++) {
+      this.getFiles(config.galleries[i], this.galleryList, config);
     }
 
-    this.imageList = config.randomizeImageOrder
-      ? this.shuffleArray(this.imageList)
-      : this.sortImageList(
-          this.imageList,
-          config.sortImagesBy,
-          config.sortImagesDescending
-        );
-    Log.info('BACKGROUNDSLIDESHOW: ' + this.imageList.length + ' files found');
+    this.galleryList.forEach(g => {
+      g.imageList = config.randomizeImageOrder
+        ? this.shuffleArray(g.imageList)
+        : this.sortImageList(
+            g.imageList,
+            config.sortImagesBy,
+            config.sortImagesDescending
+          );
+      Log.info('BACKGROUNDSLIDESHOW: ' + g.imageList.length + ' files found');
+    })
+    
     this.index = 0;
 
     // let other modules know about slideshow images
     this.sendSocketNotification("BACKGROUNDSLIDESHOW_FILELIST", {
-      imageList: this.imageList
+      galleryList: this.galleryList
     });
 
     // build the return payload
@@ -140,12 +144,18 @@ module.exports = NodeHelper.create({
   },
 
   getNextImage: function () {
-    if (!this.imageList.length || this.index >= this.imageList.length) {
+    if(this.galleryList[this.currentGallery] === undefined) {
+      setTimeout(() => {
+        this.getNextImage(config);
+      }, 15000);
+      return;;
+    }
+    if (!this.galleryList[this.currentGallery].imageList.length || this.index >= this.galleryList[this.currentGallery].imageList.length) {
       // if there are no images or all the images have been displayed, try loading the images again
       this.gatherImageList(this.config);
     }
     //
-    if (!this.imageList.length) {
+    if (!this.galleryList.length) {
       // still no images, search again after 10 mins
       setTimeout(() => {
         this.getNextImage(config);
@@ -153,7 +163,7 @@ module.exports = NodeHelper.create({
       return;
     }
 
-    var image = this.imageList[this.index++];
+    var image = this.galleryList[this.currentGallery].imageList[this.index++];
     Log.info('BACKGROUNDSLIDESHOW: reading path "' + image.path + '"');
     self = this;
     this.readFile(image.path, function (data) {
@@ -162,7 +172,7 @@ module.exports = NodeHelper.create({
         path: image.path,
         data: data,
         index: self.index,
-        total: self.imageList.length
+        total: self.galleryList[self.currentGallery].imageList.length
       };
       self.sendSocketNotification(
         'BACKGROUNDSLIDESHOW_DISPLAY_IMAGE',
@@ -206,25 +216,30 @@ module.exports = NodeHelper.create({
     }
   },
 
-  getFiles(path, imageList, config) {
+  getFiles(gallery, galleryList, config) {
     Log.info(
-      'BACKGROUNDSLIDESHOW: Reading directory "' + path + '" for images.'
+      'BACKGROUNDSLIDESHOW: Reading directory "' + gallery.path + '" for images.'
     );
-    const contents = FileSystemImageSlideshow.readdirSync(path);
+    var loadedGallery = {
+      name: gallery.name,
+      imageList: []
+    };
+    const contents = FileSystemImageSlideshow.readdirSync(gallery.path);
     for (let i = 0; i < contents.length; i++) {
       if (this.excludePaths.has(contents[i])) {
         continue;
       }
-      const currentItem = path + '/' + contents[i];
+      const currentItem = gallery.path + '/' + contents[i];
       const stats = FileSystemImageSlideshow.lstatSync(currentItem);
       if (stats.isDirectory() && config.recursiveSubDirectories) {
-        this.getFiles(currentItem, imageList, config);
+        //TODO: handle recurrection
+        //this.getFiles(currentItem, imageList, config);
       } else if (stats.isFile()) {
         const isValidImageFileExtension = this.checkValidImageFileExtension(
           currentItem
         );
         if (isValidImageFileExtension) {
-          imageList.push({
+          loadedGallery.imageList.push({
             path: currentItem,
             created: stats.ctimeMs,
             modified: stats.mtimeMs
@@ -232,6 +247,7 @@ module.exports = NodeHelper.create({
         }
       }
     }
+    galleryList.push(loadedGallery);
   },
 
   // subclass socketNotificationReceived, received notification from module
@@ -239,8 +255,8 @@ module.exports = NodeHelper.create({
     if (notification === 'BACKGROUNDSLIDESHOW_REGISTER_CONFIG') {
       const config = payload;
       this.expressInstance.use(
-        basePath + config.imagePaths[0],
-        express.static(config.imagePaths[0], { maxAge: 3600000 })
+        basePath + config.galleries[0].path,
+        express.static(config.galleries[0].path, { maxAge: 3600000 })
       );
 
       // Create set of excluded subdirectories.
@@ -276,6 +292,22 @@ module.exports = NodeHelper.create({
     } else if (notification === 'BACKGROUNDSLIDESHOW_PREV_IMAGE') {
       Log.info('BACKGROUNDSLIDESHOW_PREV_IMAGE');
       this.getPrevImage();
+    } else if (notification === 'BACKGROUNDSLIDESHOW_NEXT_GALLERY') {
+      Log.info('BACKGROUNDSLIDESHOW_NEXT_GALLERY');
+      if(this.currentGallery < this.galleryList.length - 1) {
+        this.currentGallery++;
+        this.sendSocketNotification("SHOW_ALERT", {title: this.galleryList[this.currentGallery].name, timer: 3000, imageFA:'images'});
+      } else {
+        this.sendSocketNotification("SHOW_ALERT", {title: 'This is the last gallery', timer: 3000, imageFA:'exclamation-circle'});
+      }
+    } else if (notification === 'BACKGROUNDSLIDESHOW_PREV_GALLERY') {
+      Log.info('BACKGROUNDSLIDESHOW_PREV_GALLERY');
+      if(this.currentGallery > 0) {
+        this.currentGallery--;
+        this.sendSocketNotification("SHOW_ALERT", {title: this.galleryList[this.currentGallery].name, timer: 3000, imageFA:'images'});
+      } else {
+        this.sendSocketNotification("SHOW_ALERT", {title: 'This is the first gallery', timer: 3000, imageFA:'exclamation-circle'});
+      }
     }
   }
 });

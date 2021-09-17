@@ -16,7 +16,7 @@ Module.register('MMM-BackgroundSlideshow', {
   // Default module config.
   defaults: {
     // an array of strings, each is a path to a directory with images
-    imagePaths: ['modules/MMM-BackgroundSlideshow/exampleImages'],
+    galleries: [{path:'modules/MMM-BackgroundSlideshow/exampleImages', "name": "Sample gallery"}],
     // do not recurse into these subdirectory names when scanning.
     excludePaths: ['@eaDir'],
     // the speed at which to switch between images, in milliseconds
@@ -190,9 +190,26 @@ Module.register('MMM-BackgroundSlideshow', {
           // Restart timer only if timer was already running
           this.resume();
         }
+      } else if (notification === 'BACKGROUNDSLIDESHOW_NEXT_GALLERY') {
+        // Change to next image
+        this.nextGallery();
+        this.updateImage();
+        if (this.timer && !this.playingVideo) {
+          // Restart timer only if timer was already running
+          this.resume();
+        }
       } else if (notification === 'BACKGROUNDSLIDESHOW_PREVIOUS') {
         // Change to previous image
         this.updateImage(/* skipToPrevious= */ true);
+        if (this.timer && !this.playingVideo) {
+          // Restart timer only if timer was already running
+          this.resume();
+        }
+      } else if (notification === 'BACKGROUNDSLIDESHOW_PREVIOUS_GALLERY') {
+        console.log("!!!! received prev")
+        // Change to previous image
+        this.prevGallery();
+        this.updateImage();
         if (this.timer && !this.playingVideo) {
           // Restart timer only if timer was already running
           this.resume();
@@ -312,6 +329,9 @@ Module.register('MMM-BackgroundSlideshow', {
     } else if (notification === 'BACKGROUNDSLIDESHOW_FILELIST') {
       //bubble up filelist notifications
       this.sendNotification('BACKGROUNDSLIDESHOW_FILELIST', payload);
+    } else if (notification === 'SHOW_ALERT') {
+      //bubble up filelist notifications
+      this.sendNotification('SHOW_ALERT', payload);
     }
   },
 
@@ -350,13 +370,13 @@ Module.register('MMM-BackgroundSlideshow', {
       this.createProgressbarDiv(wrapper, this.config.slideshowSpeed);
     }
 
-    if (this.config.imagePaths.length == 0) {
+    if (this.config.galleries.length == 0) {
       Log.error(
-        'MMM-BackgroundSlideshow: Missing required parameter imagePaths.'
+        'MMM-BackgroundSlideshow: Missing required parameter galleries.'
       );
     } else {
       // create an empty image list
-      this.imageList = [];
+      this.galleries = [];
       // set beginning image index to 0, as it will auto increment on start
       this.imageIndex = 0;
       this.updateImageList();
@@ -561,6 +581,14 @@ Module.register('MMM-BackgroundSlideshow', {
     } else {
       this.sendSocketNotification('BACKGROUNDSLIDESHOW_NEXT_IMAGE');
     }
+  },
+
+  nextGallery: function () {
+    this.sendSocketNotification('BACKGROUNDSLIDESHOW_NEXT_GALLERY');
+  },
+
+  prevGallery: function () {
+    this.sendSocketNotification('BACKGROUNDSLIDESHOW_PREV_GALLERY');
   },
 
   getImageTransformCss: function (exifOrientation) {
