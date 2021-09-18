@@ -206,7 +206,6 @@ Module.register('MMM-BackgroundSlideshow', {
           this.resume();
         }
       } else if (notification === 'BACKGROUNDSLIDESHOW_PREVIOUS_GALLERY') {
-        console.log("!!!! received prev")
         // Change to previous image
         this.prevGallery();
         this.updateImage();
