@@ -16,7 +16,7 @@
 const Log = require('../../js/logger.js');
 var NodeHelper = require('node_helper');
 var FileSystemImageSlideshow = require('fs');
-const sharp = require('sharp');
+const Jimp = require('jimp');
 
 const { exec } = require('child_process');
 var express = require('express');
@@ -195,17 +195,19 @@ module.exports = NodeHelper.create({
 
   readFile: function (filepath, callback) {
     if (this.config.resizeImages) {
-      sharp(filepath)
-        .withMetadata()
-        .resize(this.config.maxWidth, this.config.maxHeight, {
-          fit: sharp.fit.inside,
-          withoutEnlargement: true
+      Jimp.read(filepath)
+        .then((image) => {
+          image
+            .scaleToFit(
+              parseInt(this.config.maxWidth),
+              parseInt(this.config.maxHeight)
+            )
+            .getBuffer(Jimp.MIME_JPEG, (err, buffer) => {
+              callback('data:image/jpg;base64, ' + buffer.toString('base64'));
+            });
         })
-        .jpeg()
-        .toBuffer()
-        .then((data) => {
-          let buff = Buffer.from(data);
-          callback('data:image/jpg;base64, ' + buff.toString('base64'));
+        .catch((err) => {
+          console.log(err);
         });
     } else {
       var ext = filepath.split('.').pop();
@@ -235,9 +237,8 @@ module.exports = NodeHelper.create({
         //TODO: handle recurrection
         //this.getFiles(currentItem, imageList, config);
       } else if (stats.isFile()) {
-        const isValidImageFileExtension = this.checkValidImageFileExtension(
-          currentItem
-        );
+        const isValidImageFileExtension =
+          this.checkValidImageFileExtension(currentItem);
         if (isValidImageFileExtension) {
           loadedGallery.imageList.push({
             path: currentItem,
